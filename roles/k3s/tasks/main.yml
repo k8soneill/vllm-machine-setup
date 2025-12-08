@@ -1,0 +1,137 @@
+---
+- name: Download k3s install script
+  get_url:
+    url: "{{ k3s_install_script_url }}"
+    dest: /tmp/k3s-install.sh
+    mode: '0755'
+
+- name: Calculate k3s script checksum
+  stat:
+    path: /tmp/k3s-install.sh
+    checksum_algorithm: sha256
+  register: downloaded_script
+
+- name: Display k3s install script checksum
+  debug:
+    msg:
+      - "==========================================="
+      - "k3s Install Script Security Verification"
+      - "==========================================="
+      - "Downloaded from: {{ k3s_install_script_url }}"
+      - "Calculated SHA256: {{ downloaded_script.stat.checksum }}"
+      - "Expected SHA256: {{ k3s_install_script_checksum | default('NOT SET') | replace('sha256:', '') }}"
+      - ""
+      - "To verify this checksum manually, visit:"
+      - "{{ k3s_install_script_url }}"
+      - ""
+      - "Or run: curl -sL {{ k3s_install_script_url }} | sha256sum"
+      - "==========================================="
+
+- name: Verify checksum matches expected value
+  assert:
+    that:
+      - k3s_install_script_checksum != ""
+      - k3s_install_script_checksum == "sha256:" + downloaded_script.stat.checksum
+    fail_msg: |
+      
+      ================================================================================
+      SECURITY ALERT: k3s install script checksum mismatch or not set!
+      ================================================================================
+      
+      Expected: {{ k3s_install_script_checksum | default('NOT SET') }}
+      Got:      sha256:{{ downloaded_script.stat.checksum }}
+      
+      This could indicate:
+      1. The script has been modified (potential security risk)
+      2. The checksum in group_vars/all/defaults.yml needs to be set/updated
+      
+      ACTION REQUIRED:
+      
+      1. Verify the script manually at: {{ k3s_install_script_url }}
+      
+      2. If the script is legitimate, update group_vars/all/defaults.yml:
+         k3s_install_script_checksum: "sha256:{{ downloaded_script.stat.checksum }}"
+         k3s_verify_checksum_strict: true
+      
+      3. Re-run the playbook
+      
+      To bypass this check (NOT RECOMMENDED):
+         ansible-playbook playbook.yml -e "k3s_verify_checksum_strict=false"
+      
+      ================================================================================
+      
+    success_msg: |
+      
+      ✓ k3s install script checksum verified successfully
+      ✓ SHA256: {{ downloaded_script.stat.checksum }}
+      
+  when: k3s_verify_checksum_strict | bool
+
+- name: Warning if checksum verification is disabled
+  debug:
+    msg:
+      - "==========================================="
+      - "WARNING: Checksum verification is DISABLED"
+      - "==========================================="
+      - "This is NOT RECOMMENDED for production use!"
+      - ""
+      - "Current checksum: sha256:{{ downloaded_script.stat.checksum }}"
+      - ""
+      - "To enable verification:"
+      - "1. Update group_vars/all/defaults.yml:"
+      - "   k3s_install_script_checksum: 'sha256:{{ downloaded_script.stat.checksum }}'"
+      - "   k3s_verify_checksum_strict: true"
+      - "==========================================="
+  when: not (k3s_verify_checksum_strict | bool)
+
+- name: Install k3s
+  shell: INSTALL_K3S_VERSION={{ k3s_version }} /tmp/k3s-install.sh
+  args:
+    creates: "{{ k3s_install_dir }}/k3s"
+
+- name: Wait for k3s to be ready
+  shell: k3s kubectl get nodes
+  register: k3s_ready
+  until: k3s_ready.rc == 0
+  retries: 10
+  delay: 5
+
+- name: Remove install script after successful installation
+  file:
+    path: /tmp/k3s-install.sh
+    state: absent
+
+- name: Create .kube directory for user
+  file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Copy k3s kubeconfig for user
+  copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "/home/{{ ansible_user }}/.kube/config"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0600'
+    remote_src: yes
+
+- name: Set KUBECONFIG in bashrc
+  lineinfile:
+    path: "/home/{{ ansible_user }}/.bashrc"
+    line: "export KUBECONFIG=~/.kube/config"
+    create: yes
+
+- name: Install NVIDIA device plugin for Kubernetes
+  shell: k3s kubectl create -f {{ nvidia_device_plugin_url }}
+  ignore_errors: yes
+
+- name: Wait for NVIDIA device plugin to be ready
+  shell: k3s kubectl get pods -n kube-system | grep nvidia-device-plugin
+  register: nvidia_plugin
+  until: nvidia_plugin.rc == 0
+  retries: 10
+  delay: 5
+  ignore_errors: yes

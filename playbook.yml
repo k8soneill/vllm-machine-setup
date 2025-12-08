@@ -1,0 +1,72 @@
+---
+- name: Setup vLLM on K3s with GPU support
+  hosts: all
+  become: yes
+  
+  vars_files:
+    - custom_vars.yml
+  
+  tasks:
+    - name: Display configuration
+      debug:
+        msg:
+          - "==========================================="
+          - "vLLM on K3s Setup Configuration"
+          - "==========================================="
+          - "Model: {{ vllm_model }}"
+          - "User: {{ ansible_user }}"
+          - "Cache directory: {{ huggingface_cache }}"
+          - "WSL detected: {{ is_wsl }}"
+          - "k3s version: {{ k3s_version }}"
+          - "Checksum verification: {{ 'ENABLED' if k3s_verify_checksum_strict else 'DISABLED' }}"
+          - "==========================================="
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - wget
+          - gpg
+          - apt-transport-https
+          - ca-certificates
+          - software-properties-common
+          - python3-pip
+        state: present
+
+    - name: Include Docker role
+      include_role:
+        name: docker
+
+    - name: Include K3s role
+      include_role:
+        name: k3s
+
+    - name: Include vLLM role
+      include_role:
+        name: vllm
+
+    - name: Display completion message
+      debug:
+        msg:
+          - ""
+          - "==========================================="
+          - "✓ Setup Complete!"
+          - "==========================================="
+          - ""
+          - "vLLM is deployed and running on Kubernetes"
+          - ""
+          - "Test the API:"
+          - "  curl http://localhost:{{ vllm_port }}/v1/chat/completions \\"
+          - "    -H 'Content-Type: application/json' \\"
+          - "    -d '{\"model\": \"{{ vllm_model }}\", \"messages\": [{\"role\": \"user\", \"content\": \"Hello!\"}]}'"
+          - ""
+          - "Check deployment:"
+          - "  kubectl get pods"
+          - "  kubectl logs -l app={{ vllm_deployment_name }} -f"
+          - ""
+          - "==========================================="

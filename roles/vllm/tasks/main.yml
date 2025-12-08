@@ -1,0 +1,44 @@
+---
+- name: Create Hugging Face cache directory
+  file:
+    path: "{{ huggingface_cache }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Create vLLM deployment manifest
+  template:
+    src: vllm-deployment.yaml.j2
+    dest: "/home/{{ ansible_user }}/vllm-deployment.yaml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Deploy vLLM to Kubernetes
+  shell: k3s kubectl apply -f /home/{{ ansible_user }}/vllm-deployment.yaml
+  become_user: "{{ ansible_user }}"
+
+- name: Wait for vLLM pod to be ready
+  shell: k3s kubectl get pods -l app={{ vllm_deployment_name }} -o jsonpath='{.items[0].status.phase}'
+  register: vllm_status
+  until: vllm_status.stdout == "Running"
+  retries: 30
+  delay: 10
+  ignore_errors: yes
+
+- name: Display vLLM deployment status
+  debug:
+    msg:
+      - "==========================================="
+      - "vLLM Deployment Status"
+      - "==========================================="
+      - "Pod Status: {{ vllm_status.stdout | default('Unknown') }}"
+      - ""
+      - "To check logs:"
+      - "  kubectl logs -l app={{ vllm_deployment_name }} -f"
+      - ""
+      - "To test the API:"
+      - "  curl http://localhost:{{ vllm_port }}/v1/chat/completions \\"
+      - "    -H 'Content-Type: application/json' \\"
+      - "    -d '{\"model\": \"{{ vllm_model }}\", \"messages\": [{\"role\": \"user\", \"content\": \"Hello!\"}]}'"
+      - "==========================================="

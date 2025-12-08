@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ vllm_deployment_name }}
+  namespace: {{ vllm_namespace }}
+spec:
+  replicas: {{ vllm_replicas }}
+  selector:
+    matchLabels:
+      app: {{ vllm_deployment_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ vllm_deployment_name }}
+    spec:
+      containers:
+      - name: vllm
+        image: vllm/vllm-openai:latest
+        args:
+          - --model
+          - {{ vllm_model }}
+          - --quantization
+          - {{ vllm_quantization }}
+          - --dtype
+          - {{ vllm_dtype }}
+          - --max-model-len
+          - "{{ vllm_max_model_len }}"
+          - --gpu-memory-utilization
+          - "{{ vllm_gpu_memory_utilization }}"
+        ports:
+        - containerPort: {{ vllm_port }}
+          name: http
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        volumeMounts:
+        - name: huggingface-cache
+          mountPath: /root/.cache/huggingface
+      volumes:
+      - name: huggingface-cache
+        hostPath:
+          path: {{ huggingface_cache }}
+          type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ vllm_service_name }}
+  namespace: {{ vllm_namespace }}
+spec:
+  selector:
+    app: {{ vllm_deployment_name }}
+  ports:
+  - port: {{ vllm_port }}
+    targetPort: {{ vllm_port }}
+  type: LoadBalancer

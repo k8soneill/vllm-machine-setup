@@ -1,0 +1,44 @@
+---
+# User configuration
+ansible_user: "{{ lookup('env', 'USER') }}"
+
+# Model configuration
+vllm_model: "TheBloke/Mistral-7B-Instruct-v0.2-AWQ"
+vllm_quantization: "awq"
+vllm_dtype: "auto"
+vllm_max_model_len: 4096
+vllm_gpu_memory_utilization: 0.8
+vllm_port: 8000
+
+# Storage configuration
+huggingface_cache: "/home/{{ ansible_user }}/.cache/huggingface"
+
+# Docker configuration
+docker_users:
+  - "{{ ansible_user }}"
+
+# K3s configuration - SECURITY: Pin specific version and checksum
+k3s_version: "v1.28.5+k3s1"
+k3s_install_script_url: "https://raw.githubusercontent.com/k3s-io/k3s/{{ k3s_version }}/install.sh"
+
+# IMPORTANT: Get this checksum by running:
+# curl -sL https://raw.githubusercontent.com/k3s-io/k3s/v1.28.5+k3s1/install.sh | sha256sum
+# Update this value with the actual checksum
+k3s_install_script_checksum: ""  # Leave empty on first run to see actual checksum
+
+# Set to true for strict checksum verification (recommended)
+k3s_verify_checksum_strict: false  # Set to true after you've verified the checksum
+k3s_install_dir: /usr/local/bin
+
+# NVIDIA device plugin
+nvidia_device_plugin_version: "v0.14.0"
+nvidia_device_plugin_url: "https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/{{ nvidia_device_plugin_version }}/nvidia-device-plugin.yml"
+
+# Kubernetes deployment
+vllm_deployment_name: vllm-mistral
+vllm_service_name: vllm-service
+vllm_replicas: 1
+vllm_namespace: default
+
+# WSL detection (automatically set)
+is_wsl: "{{ ansible_kernel is search('microsoft') }}"
