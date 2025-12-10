@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-device-plugin-daemonset
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: nvidia-device-plugin-ds
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: nvidia-device-plugin-ds
+    spec:
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      priorityClassName: system-node-critical
+      containers:
+      - image: "{{ nvidia_device_plugin_image }}:{{ nvidia_device_plugin_tag }}"
+        name: nvidia-device-plugin-ctr
+        env:
+        - name: FAIL_ON_INIT_ERROR
+          value: "false"
+{% if is_wsl %}
+        - name: LD_LIBRARY_PATH
+          value: /usr/lib/wsl/lib
+        securityContext:
+          privileged: true
+{% else %}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+{% endif %}
+        volumeMounts:
+        - name: device-plugin
+          mountPath: /var/lib/kubelet/device-plugins
+{% if is_wsl %}
+        - name: wsl-lib
+          mountPath: /usr/lib/wsl/lib
+          readOnly: true
+{% endif %}
+      volumes:
+      - name: device-plugin
+        hostPath:
+{% if is_wsl %}
+          path: /var/lib/rancher/k3s/agent/kubelet/device-plugins
+{% else %}
+          path: /var/lib/kubelet/device-plugins
+{% endif %}
+{% if is_wsl %}
+      - name: wsl-lib
+        hostPath:
+          path: /usr/lib/wsl/lib
+{% endif %}

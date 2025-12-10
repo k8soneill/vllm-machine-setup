@@ -1,4 +1,17 @@
 ---
+- name: Detect init system
+  shell: ps -p 1 -o comm=
+  register: init_system
+  changed_when: false
+
+- name: Set init system fact
+  set_fact:
+    uses_systemd: "{{ init_system.stdout == 'systemd' }}"
+
+- name: Display init system
+  debug:
+    msg: "Init system detected: {{ init_system.stdout }} (systemd: {{ uses_systemd }})"
+
 - name: Download k3s install script
   get_url:
     url: "{{ k3s_install_script_url }}"
@@ -84,22 +97,24 @@
       - "==========================================="
   when: not (k3s_verify_checksum_strict | bool)
 
-- name: Install k3s
-  shell: INSTALL_K3S_VERSION={{ k3s_version }} /tmp/k3s-install.sh
-  args:
-    creates: "{{ k3s_install_dir }}/k3s"
+# Include systemd-specific tasks
+- name: Include systemd installation tasks
+  include_tasks: install_systemd.yml
+  when: uses_systemd | bool
 
-- name: Wait for k3s to be ready
-  shell: k3s kubectl get nodes
-  register: k3s_ready
-  until: k3s_ready.rc == 0
-  retries: 10
-  delay: 5
+# Include non-systemd (WSL/service) tasks
+- name: Include service-based installation tasks
+  include_tasks: install_service.yml
+  when: not (uses_systemd | bool)
 
 - name: Remove install script after successful installation
   file:
     path: /tmp/k3s-install.sh
     state: absent
+
+# Setup kubectl command
+- name: Setup kubectl
+  include_tasks: setup_kubectl.yml
 
 - name: Create .kube directory for user
   file:
@@ -124,14 +139,6 @@
     line: "export KUBECONFIG=~/.kube/config"
     create: yes
 
-- name: Install NVIDIA device plugin for Kubernetes
-  shell: k3s kubectl create -f {{ nvidia_device_plugin_url }}
-  ignore_errors: yes
-
-- name: Wait for NVIDIA device plugin to be ready
-  shell: k3s kubectl get pods -n kube-system | grep nvidia-device-plugin
-  register: nvidia_plugin
-  until: nvidia_plugin.rc == 0
-  retries: 10
-  delay: 5
-  ignore_errors: yes
+# Install NVIDIA device plugin with WSL2 support
+- name: Install NVIDIA device plugin
+  include_tasks: install_nvidia_plugin.yml

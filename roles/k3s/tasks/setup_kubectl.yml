@@ -1,0 +1,21 @@
+---
+- name: Check if kubectl already exists
+  stat:
+    path: /usr/local/bin/kubectl
+  register: kubectl_exists
+
+- name: Create kubectl symlink to k3s
+  file:
+    src: "{{ k3s_install_dir }}/k3s"
+    dest: /usr/local/bin/kubectl
+    state: link
+  when: not kubectl_exists.stat.exists
+
+- name: Verify kubectl works
+  shell: kubectl version --client
+  register: kubectl_version
+  changed_when: false
+
+- name: Display kubectl version
+  debug:
+    msg: "kubectl is available: {{ kubectl_version.stdout }}"

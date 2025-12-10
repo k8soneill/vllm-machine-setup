@@ -1,0 +1,189 @@
+---
+# ============================================================================
+# GPU Verification Tasks
+# ============================================================================
+
+- name: Get node information
+  kubernetes.core.k8s_info:
+    kind: Node
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+  register: node_info
+
+- name: Extract GPU information from nodes
+  set_fact:
+    gpu_capacity: "{{ node_info.resources | map(attribute='status.allocatable') | map(attribute='nvidia.com/gpu', default='0') | list }}"
+    node_names: "{{ node_info.resources | map(attribute='metadata.name') | list }}"
+
+- name: Build GPU capacity message
+  set_fact:
+    gpu_capacity_msg: "{{ node_names | zip(gpu_capacity) | map('join', ': ') | map('regex_replace', '$', ' GPUs') | list }}"
+
+- name: Verify at least one GPU is detected
+  set_fact:
+    gpu_detected: "{{ gpu_capacity | select('gt', '0') | list | length > 0 }}"
+
+- name: Create GPU test pod
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    definition:
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: gpu-test-pod
+        namespace: default
+      spec:
+        restartPolicy: Never
+        containers:
+        - name: cuda-test
+          image: nvidia/cuda:12.1.0-base-ubuntu22.04
+          command: ["nvidia-smi"]
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+  register: test_pod_create
+  failed_when: false
+
+- name: Wait for GPU test pod to complete or fail
+  kubernetes.core.k8s_info:
+    kind: Pod
+    name: gpu-test-pod
+    namespace: default
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+  register: test_pod_status
+  until: test_pod_status.resources[0].status.phase in ['Succeeded', 'Failed']
+  retries: 12
+  delay: 5
+  when: test_pod_create is succeeded
+  ignore_errors: yes
+
+- name: Get GPU test pod logs
+  kubernetes.core.k8s_log:
+    name: gpu-test-pod
+    namespace: default
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+  register: test_pod_logs
+  when: test_pod_create is succeeded
+  ignore_errors: yes
+
+- name: Get GPU test pod events if failed
+  kubernetes.core.k8s_info:
+    kind: Event
+    namespace: default
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+  register: test_pod_events
+  when: 
+    - test_pod_create is succeeded
+    - test_pod_status.resources[0].status.phase == 'Failed'
+
+- name: Clean up GPU test pod
+  kubernetes.core.k8s:
+    state: absent
+    kind: Pod
+    name: gpu-test-pod
+    namespace: default
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+  ignore_errors: yes
+
+- name: Get device plugin logs for troubleshooting
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: kube-system
+    label_selectors:
+      - name=nvidia-device-plugin-ds
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+  register: device_plugin_pods_validation
+
+- name: Get device plugin logs
+  kubernetes.core.k8s_log:
+    name: "{{ device_plugin_pods_validation.resources[0].metadata.name }}"
+    namespace: kube-system
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    tail_lines: 50
+  register: device_plugin_logs_validation
+  when: device_plugin_pods_validation.resources | length > 0
+  ignore_errors: yes
+
+# ============================================================================
+# Display Results
+# ============================================================================
+
+- name: Display comprehensive GPU status
+  debug:
+    msg:
+      - ""
+      - "==========================================="
+      - "GPU Verification Results"
+      - "==========================================="
+      - "Platform: {{ 'WSL2' if is_wsl else 'Standard Linux' }}"
+      - ""
+      - "--- Node GPU Resources ---"
+      - "{{ gpu_capacity_msg | join('\n') }}"
+      - ""
+      - "--- GPU Test Pod Results ---"
+      - "Test Pod Created: {{ 'YES ✓' if test_pod_create is succeeded else 'NO ✗' }}"
+      - "Test Pod Status: {{ test_pod_status.resources[0].status.phase if (test_pod_create is succeeded and test_pod_status.resources | length > 0) else 'Unknown' }}"
+      - "{% if test_pod_logs.log is defined and test_pod_logs.log != '' %}GPU Test Output: SUCCESS ✓{% else %}GPU Test Output: FAILED ✗{% endif %}"
+      - ""
+      - "{% if test_pod_logs.log is defined and test_pod_logs.log != '' %}--- nvidia-smi output from test pod ---\n{{ test_pod_logs.log }}{% endif %}"
+      - ""
+      - "--- Manual Verification Commands ---"
+      - "  kubectl describe node | grep nvidia.com/gpu"
+      - "  kubectl logs -n kube-system -l name=nvidia-device-plugin-ds"
+      - "  kubectl get nodes -o json | jq '.items[].status.allocatable'"
+      - "==========================================="
+
+- name: Fail if no GPU detected on nodes
+  fail:
+    msg: |
+      
+      ================================================================================
+      ERROR: No GPU detected on Kubernetes nodes!
+      ================================================================================
+      
+      The NVIDIA device plugin is installed but no GPU resources are showing up
+      on the nodes. This could be due to:
+      
+      1. Device plugin couldn't find NVIDIA libraries
+         {% if is_wsl %}(WSL2: Check /usr/lib/wsl/lib/){% else %}(Check NVIDIA drivers installed){% endif %}
+      
+      2. NVIDIA Container Runtime not configured properly
+         Run: docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi
+      
+      3. Device plugin failed to start
+         Check logs: kubectl logs -n kube-system -l name=nvidia-device-plugin-ds
+      
+      {% if device_plugin_logs_validation.log is defined %}
+      Device Plugin Logs:
+      {{ device_plugin_logs_validation.log | indent(2) }}
+      {% endif %}
+      
+      ================================================================================
+      
+  when: 
+    - not gpu_detected
+    - gpu_verification_strict | default(true)
+
+- name: Warning if GPU verification is not strict
+  debug:
+    msg:
+      - "==========================================="
+      - "WARNING: GPU not detected but continuing"
+      - "==========================================="
+      - "Set 'gpu_verification_strict: true' in vars to fail on GPU detection errors"
+      - "==========================================="
+  when:
+    - not gpu_detected
+    - not (gpu_verification_strict | default(true))
+
+- name: Success message if GPU detected
+  debug:
+    msg:
+      - ""
+      - "==========================================="
+      - "✓ SUCCESS: GPU Successfully Detected!"
+      - "==========================================="
+      - "Your Kubernetes cluster can now schedule GPU workloads"
+      - "==========================================="
+      - ""
+  when: gpu_detected

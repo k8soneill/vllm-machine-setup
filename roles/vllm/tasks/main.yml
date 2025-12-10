@@ -15,15 +15,25 @@
     group: "{{ ansible_user }}"
 
 - name: Deploy vLLM to Kubernetes
-  shell: k3s kubectl apply -f /home/{{ ansible_user }}/vllm-deployment.yaml
+  kubernetes.core.k8s:
+    state: present
+    src: "/home/{{ ansible_user }}/vllm-deployment.yaml"
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
   become_user: "{{ ansible_user }}"
+  register: vllm_deploy
 
 - name: Wait for vLLM pod to be ready
-  shell: k3s kubectl get pods -l app={{ vllm_deployment_name }} -o jsonpath='{.items[0].status.phase}'
-  register: vllm_status
-  until: vllm_status.stdout == "Running"
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ vllm_namespace }}"
+    label_selectors:
+      - "app={{ vllm_deployment_name }}"
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+  register: vllm_pods
+  until: vllm_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 30
   delay: 10
+  become_user: "{{ ansible_user }}"
   ignore_errors: yes
 
 - name: Display vLLM deployment status
@@ -32,7 +42,7 @@
       - "==========================================="
       - "vLLM Deployment Status"
       - "==========================================="
-      - "Pod Status: {{ vllm_status.stdout | default('Unknown') }}"
+      - "Pod Status: {{ vllm_pods.resources[0].status.phase if vllm_pods.resources | length > 0 else 'Unknown' }}"
       - ""
       - "To check logs:"
       - "  kubectl logs -l app={{ vllm_deployment_name }} -f"

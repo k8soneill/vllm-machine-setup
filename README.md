@@ -169,6 +169,43 @@ vllm-k8s-setup/
             └── vllm-deployment.yaml.j2
 ```
 
+## System Requirements
+
+This playbook supports both systemd and non-systemd systems (like WSL2).
+
+### Non-systemd Systems (WSL2)
+
+On WSL2, k3s runs as a background process instead of a systemd service. Management commands:
+```bash
+# Start k3s
+sudo /usr/local/bin/k3s-service.sh start
+
+# Stop k3s
+sudo /usr/local/bin/k3s-service.sh stop
+
+# Check status
+sudo /usr/local/bin/k3s-service.sh status
+
+# View logs
+tail -f /var/log/k3s.log
+```
+
+k3s will auto-start when you open a new terminal session.
+
+### Systemd Systems
+
+On systems with systemd, k3s runs as a standard systemd service:
+```bash
+# Start k3s
+sudo systemctl start k3s
+
+# Check status
+sudo systemctl status k3s
+
+# View logs
+sudo journalctl -u k3s -f
+```
+
 ## License
 
 MIT

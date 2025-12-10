@@ -7,15 +7,40 @@
       - gnupg
     state: present
 
-- name: Add Docker GPG key
-  apt_key:
+- name: Create keyrings directory
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Remove old Docker GPG key if exists
+  file:
+    path: /usr/share/keyrings/docker-archive-keyring.gpg
+    state: absent
+
+- name: Remove conflicting Docker repository files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/sources.list.d/docker.list
+    - /etc/apt/sources.list.d/archive_uri-https_download_docker_com_linux_ubuntu-jammy.list
+
+- name: Download Docker GPG key
+  get_url:
     url: https://download.docker.com/linux/ubuntu/gpg
-    state: present
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
 
 - name: Add Docker repository
   apt_repository:
-    repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
     state: present
+    filename: docker
+
+- name: Update apt cache after adding Docker repo
+  apt:
+    update_cache: yes
 
 - name: Install Docker
   apt:
@@ -24,7 +49,6 @@
       - docker-ce-cli
       - containerd.io
     state: present
-    update_cache: yes
 
 - name: Add users to docker group
   user:
@@ -53,13 +77,24 @@
   shell: nvidia-ctk runtime configure --runtime=docker
   notify: restart docker
 
-- name: Ensure Docker service is started and enabled
+- name: Detect init system for Docker
+  shell: ps -p 1 -o comm=
+  register: docker_init_system
+  changed_when: false
+
+- name: Ensure Docker service is started and enabled (systemd)
   systemd:
     name: docker
     state: started
     enabled: yes
+  when: docker_init_system.stdout == "systemd"
 
-- name: Configure Docker to start on WSL boot
+- name: Start Docker service (non-systemd)
+  shell: service docker start
+  when: docker_init_system.stdout != "systemd"
+  ignore_errors: yes
+
+- name: Configure Docker to start on boot
   lineinfile:
     path: "/home/{{ ansible_user }}/.bashrc"
     line: "sudo service docker start 2>/dev/null"

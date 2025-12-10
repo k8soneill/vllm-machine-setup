@@ -1,0 +1,26 @@
+---
+- name: Install k3s with systemd
+  shell: INSTALL_K3S_VERSION={{ k3s_version }} /tmp/k3s-install.sh
+  args:
+    creates: "{{ k3s_install_dir }}/k3s"
+
+- name: Wait for k3s systemd service to be active
+  shell: systemctl is-active k3s
+  register: k3s_service_check
+  until: k3s_service_check.stdout == "active"
+  retries: 10
+  delay: 5
+  changed_when: false
+
+- name: Ensure k3s is enabled on boot
+  shell: systemctl enable k3s
+  changed_when: false
+
+- name: Wait for k3s API to be ready
+  kubernetes.core.k8s_info:
+    kind: Node
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+  register: k3s_nodes
+  until: k3s_nodes.resources | length > 0
+  retries: 10
+  delay: 5
