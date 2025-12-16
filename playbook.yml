@@ -35,10 +35,6 @@
           - python3-pip
         state: present
 
-    - name: Include Docker role
-      include_role:
-        name: docker
-
     - name: Include K3s role
       include_role:
         name: k3s

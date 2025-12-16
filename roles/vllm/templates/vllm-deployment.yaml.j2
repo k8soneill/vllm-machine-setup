@@ -13,6 +13,7 @@ spec:
       labels:
         app: {{ vllm_deployment_name }}
     spec:
+      runtimeClassName: nvidia
       containers:
       - name: vllm
         image: vllm/vllm-openai:latest

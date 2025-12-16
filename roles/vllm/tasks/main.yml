@@ -18,7 +18,7 @@
   kubernetes.core.k8s:
     state: present
     src: "/home/{{ ansible_user }}/vllm-deployment.yaml"
-    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    kubeconfig: "{{ kubeconfig }}"
   become_user: "{{ ansible_user }}"
   register: vllm_deploy
 
@@ -28,7 +28,7 @@
     namespace: "{{ vllm_namespace }}"
     label_selectors:
       - "app={{ vllm_deployment_name }}"
-    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+    kubeconfig: "{{ kubeconfig }}"
   register: vllm_pods
   until: vllm_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 30

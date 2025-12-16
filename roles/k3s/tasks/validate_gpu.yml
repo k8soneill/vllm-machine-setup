@@ -6,7 +6,7 @@
 - name: Get node information
   kubernetes.core.k8s_info:
     kind: Node
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
   register: node_info
 
 - name: Extract GPU information from nodes
@@ -25,7 +25,7 @@
 - name: Create GPU test pod
   kubernetes.core.k8s:
     state: present
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
     definition:
       apiVersion: v1
       kind: Pod
@@ -49,7 +49,7 @@
     kind: Pod
     name: gpu-test-pod
     namespace: default
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
   register: test_pod_status
   until: test_pod_status.resources[0].status.phase in ['Succeeded', 'Failed']
   retries: 12
@@ -61,7 +61,7 @@
   kubernetes.core.k8s_log:
     name: gpu-test-pod
     namespace: default
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
   register: test_pod_logs
   when: test_pod_create is succeeded
   ignore_errors: yes
@@ -70,7 +70,7 @@
   kubernetes.core.k8s_info:
     kind: Event
     namespace: default
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
   register: test_pod_events
   when: 
     - test_pod_create is succeeded
@@ -82,7 +82,7 @@
     kind: Pod
     name: gpu-test-pod
     namespace: default
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
   ignore_errors: yes
 
 - name: Get device plugin logs for troubleshooting
@@ -91,14 +91,14 @@
     namespace: kube-system
     label_selectors:
       - name=nvidia-device-plugin-ds
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
   register: device_plugin_pods_validation
 
 - name: Get device plugin logs
   kubernetes.core.k8s_log:
     name: "{{ device_plugin_pods_validation.resources[0].metadata.name }}"
     namespace: kube-system
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
     tail_lines: 50
   register: device_plugin_logs_validation
   when: device_plugin_pods_validation.resources | length > 0
@@ -115,7 +115,6 @@
       - "==========================================="
       - "GPU Verification Results"
       - "==========================================="
-      - "Platform: {{ 'WSL2' if is_wsl else 'Standard Linux' }}"
       - ""
       - "--- Node GPU Resources ---"
       - "{{ gpu_capacity_msg | join('\n') }}"
@@ -145,7 +144,7 @@
       on the nodes. This could be due to:
       
       1. Device plugin couldn't find NVIDIA libraries
-         {% if is_wsl %}(WSL2: Check /usr/lib/wsl/lib/){% else %}(Check NVIDIA drivers installed){% endif %}
+         (Check NVIDIA drivers installed)
       
       2. NVIDIA Container Runtime not configured properly
          Run: docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi

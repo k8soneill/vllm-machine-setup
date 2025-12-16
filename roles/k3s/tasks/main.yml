@@ -1,17 +1,4 @@
 ---
-- name: Detect init system
-  shell: ps -p 1 -o comm=
-  register: init_system
-  changed_when: false
-
-- name: Set init system fact
-  set_fact:
-    uses_systemd: "{{ init_system.stdout == 'systemd' }}"
-
-- name: Display init system
-  debug:
-    msg: "Init system detected: {{ init_system.stdout }} (systemd: {{ uses_systemd }})"
-
 - name: Download k3s install script
   get_url:
     url: "{{ k3s_install_script_url }}"
@@ -100,12 +87,6 @@
 # Include systemd-specific tasks
 - name: Include systemd installation tasks
   include_tasks: install_systemd.yml
-  when: uses_systemd | bool
-
-# Include non-systemd (WSL/service) tasks
-- name: Include service-based installation tasks
-  include_tasks: install_service.yml
-  when: not (uses_systemd | bool)
 
 - name: Remove install script after successful installation
   file:
@@ -138,6 +119,10 @@
     path: "/home/{{ ansible_user }}/.bashrc"
     line: "export KUBECONFIG=~/.kube/config"
     create: yes
+
+# Setup NVIDIA RuntimeClass
+- name: Setup NVIDIA RuntimeClass
+  include_tasks: setup_nvidia_runtime.yml
 
 # Install NVIDIA device plugin with WSL2 support
 - name: Install NVIDIA device plugin

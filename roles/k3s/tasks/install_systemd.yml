@@ -5,16 +5,14 @@
     creates: "{{ k3s_install_dir }}/k3s"
 
 - name: Wait for k3s systemd service to be active
-  shell: systemctl is-active k3s
+  ansible.builtin.systemd:
+    name: k3s
+    state: started
+    enabled: yes  
   register: k3s_service_check
-  until: k3s_service_check.stdout == "active"
+  until: k3s_service_check.status.ActiveState == 'active'
   retries: 10
   delay: 5
-  changed_when: false
-
-- name: Ensure k3s is enabled on boot
-  shell: systemctl enable k3s
-  changed_when: false
 
 - name: Wait for k3s API to be ready
   kubernetes.core.k8s_info:

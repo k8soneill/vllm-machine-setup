@@ -13,13 +13,10 @@ vllm_port: 8000
 # Storage configuration
 huggingface_cache: "/home/{{ ansible_user }}/.cache/huggingface"
 
-# Docker configuration
-docker_users:
-  - "{{ ansible_user }}"
-
 # K3s configuration - SECURITY: Pin specific version and checksum
 k3s_version: "v1.28.5+k3s1"
 k3s_install_script_url: "https://raw.githubusercontent.com/k3s-io/k3s/{{ k3s_version }}/install.sh"
+kubeconfig: "/home/{{ ansible_user }}/.kube/config"
 
 # IMPORTANT: Get this checksum by running:
 # curl -sL https://raw.githubusercontent.com/k3s-io/k3s/v1.28.5+k3s1/install.sh | sha256sum
@@ -31,7 +28,7 @@ k3s_verify_checksum_strict: true  # Set to true after you've verified the checks
 k3s_install_dir: /usr/local/bin
 
 # NVIDIA device plugin
-nvidia_device_plugin_tag: "v0.14.0"
+nvidia_device_plugin_tag: "v0.15.0-rc.2"
 nvidia_device_plugin_image: nvcr.io/nvidia/k8s-device-plugin
 
 # Kubernetes deployment
@@ -39,17 +36,6 @@ vllm_deployment_name: vllm-mistral
 vllm_service_name: vllm-service
 vllm_replicas: 1
 vllm_namespace: default
-
-# WSL detection (automatically set)
-is_wsl: "{{ ansible_kernel is search('microsoft') }}"
-
-# Init system configuration
-# Set to 'service' for systems without systemd (e.g., WSL, containers)
-# Set to 'systemd' for systems with systemd
-init_system: "service"  # Options: 'systemd' or 'service'
-
-# Service management
-auto_start_services: true  # Auto-start Docker and k3s on shell open (WSL)
 
 # GPU settings
 gpu_verification_strict: true # Validate GPU available on nodes

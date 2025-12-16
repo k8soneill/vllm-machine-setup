@@ -1,0 +1,96 @@
+---
+- name: Display uninstall warning
+  debug:
+    msg:
+      - "==========================================="
+      - "WARNING: Uninstalling k3s"
+      - "==========================================="
+      - "This will remove k3s and all workloads"
+      - "==========================================="
+
+- name: Check if k3s is installed
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+
+- name: Stop k3s service (systemd)
+  systemd:
+    name: k3s
+    state: stopped
+  when: 
+    - k3s_installed.stat.exists
+  ignore_errors: yes
+
+- name: Run k3s uninstall script
+  shell: /usr/local/bin/k3s-uninstall.sh
+  when: k3s_installed.stat.exists
+  ignore_errors: yes
+
+- name: Remove k3s service script (if exists)
+  file:
+    path: /usr/local/bin/k3s-service.sh
+    state: absent
+
+- name: Remove k3s directories
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/lib/rancher/k3s
+    - /etc/rancher/k3s
+    - /var/log/k3s.log
+    - /var/run/k3s.pid
+
+- name: Remove kubectl symlink
+  file:
+    path: /usr/local/bin/kubectl
+    state: absent
+
+- name: Remove user kubeconfig
+  file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: absent
+
+- name: Remove KUBECONFIG from bashrc
+  lineinfile:
+    path: "/home/{{ ansible_user }}/.bashrc"
+    regexp: "^export KUBECONFIG=.*"
+    state: absent
+
+- name: Remove k3s auto-start from bashrc
+  lineinfile:
+    path: "/home/{{ ansible_user }}/.bashrc"
+    regexp: ".*k3s-service.sh start.*"
+    state: absent
+
+- name: Remove passwordless sudo for k3s
+  file:
+    path: /etc/sudoers.d/k3s-service
+    state: absent
+
+- name: Remove k3s binaries
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /usr/local/bin/k3s
+    - /usr/local/bin/kubectl
+    - /usr/local/bin/crictl
+    - /usr/local/bin/ctr
+
+- name: Clean up any remaining k3s processes
+  shell: pkill -9 k3s
+  ignore_errors: yes
+  changed_when: false
+
+- name: Display completion message
+  debug:
+    msg:
+      - "==========================================="
+      - "✓ k3s Uninstalled"
+      - "==========================================="
+      - "To reinstall manually:"
+      - "  curl -sfL https://get.k3s.io | sh -"
+      - ""
+      - "Or run the playbook again to reinstall"
+      - "==========================================="

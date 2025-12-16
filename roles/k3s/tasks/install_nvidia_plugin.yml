@@ -1,8 +1,4 @@
 ---
-- name: Display which device plugin configuration is being used
-  debug:
-    msg: "Creating NVIDIA device plugin manifest for {{ 'WSL2' if is_wsl else 'standard Linux' }}"
-
 - name: Force delete device plugin if requested
   kubernetes.core.k8s:
     state: absent
@@ -10,7 +6,7 @@
     kind: DaemonSet
     name: nvidia-device-plugin-daemonset
     namespace: kube-system
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
   when: gpu_force_recreate | default(false)
 
 - name: Wait for forced deletion to complete
@@ -28,9 +24,8 @@
   kubernetes.core.k8s:
     state: present
     src: /tmp/nvidia-device-plugin.yaml
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
   register: device_plugin_apply
-  become: true
 
 - name: Wait for NVIDIA device plugin pods to be ready
   kubernetes.core.k8s_info:
@@ -38,7 +33,7 @@
     namespace: kube-system
     label_selectors:
       - name=nvidia-device-plugin-ds
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
   register: device_plugin_pods
   until: device_plugin_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
   retries: 20
@@ -49,7 +44,7 @@
     kind: DaemonSet
     name: nvidia-device-plugin-daemonset
     namespace: kube-system
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
   register: device_plugin_ds
 
 - name: Display device plugin status
@@ -62,7 +57,7 @@
   kubernetes.core.k8s_log:
     name: "{{ device_plugin_pods.resources[0].metadata.name }}"
     namespace: kube-system
-    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    kubeconfig: "{{ kubeconfig }}"
     tail_lines: 50
   register: device_plugin_logs
   when: 
