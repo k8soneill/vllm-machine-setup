@@ -13,6 +13,8 @@ spec:
       labels:
         app: {{ vllm_deployment_name }}
     spec:
+      strategy:
+        type: Recreate
       runtimeClassName: nvidia
       containers:
       - name: vllm
@@ -28,6 +30,13 @@ spec:
           - "{{ vllm_max_model_len }}"
           - --gpu-memory-utilization
           - "{{ vllm_gpu_memory_utilization }}"
+        env:
+        - name: LD_LIBRARY_PATH
+          value: /usr/lib/wsl/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: all
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: compute,utility
         ports:
         - containerPort: {{ vllm_port }}
           name: http
@@ -37,11 +46,17 @@ spec:
         volumeMounts:
         - name: huggingface-cache
           mountPath: /root/.cache/huggingface
+        - name: wsl-lib
+          mountPath: /usr/lib/wsl/lib
+          readOnly: true
       volumes:
       - name: huggingface-cache
         hostPath:
           path: {{ huggingface_cache }}
           type: DirectoryOrCreate
+      - name: wsl-lib
+        hostPath:
+          path: /usr/lib/wsl/lib
 ---
 apiVersion: v1
 kind: Service

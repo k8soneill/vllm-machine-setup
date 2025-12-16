@@ -13,7 +13,6 @@
           - "Model: {{ vllm_model }}"
           - "User: {{ ansible_user }}"
           - "Cache directory: {{ huggingface_cache }}"
-          - "WSL detected: {{ is_wsl }}"
           - "k3s version: {{ k3s_version }}"
           - "Checksum verification: {{ 'ENABLED' if k3s_verify_checksum_strict else 'DISABLED' }}"
           - "==========================================="

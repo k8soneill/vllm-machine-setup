@@ -31,7 +31,7 @@
     kubeconfig: "{{ kubeconfig }}"
   register: vllm_pods
   until: vllm_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
-  retries: 30
+  retries: 60
   delay: 10
   become_user: "{{ ansible_user }}"
   ignore_errors: yes

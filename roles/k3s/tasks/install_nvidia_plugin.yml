@@ -75,7 +75,3 @@
   file:
     path: /tmp/nvidia-device-plugin.yaml
     state: absent
-
-# Always validate GPU availability
-- name: Validate GPU availability
-  include_tasks: validate_gpu.yml

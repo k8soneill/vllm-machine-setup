@@ -14,6 +14,12 @@
   retries: 10
   delay: 5
 
+- name: Set permissions on k3s.yaml
+  file:
+    path: /etc/rancher/k3s/k3s.yaml
+    mode: '0644'
+  become: yes
+
 - name: Wait for k3s API to be ready
   kubernetes.core.k8s_info:
     kind: Node
