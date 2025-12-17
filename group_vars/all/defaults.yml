@@ -39,3 +39,7 @@ vllm_namespace: default
 
 # GPU settings
 gpu_verification_strict: true # Validate GPU available on nodes
+
+# Helm configuration
+helm_repositories:
+  - { name: "prometheus-community", url: "https://prometheus-community.github.io/helm-charts" }

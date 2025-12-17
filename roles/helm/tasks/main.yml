@@ -1,0 +1,69 @@
+---
+- name: Install Helm prerequisites
+  apt:
+    name:
+      - curl
+      - gpg
+      - apt-transport-https
+    state: present
+    update_cache: yes
+
+- name: Check if Helm GPG key exists
+  stat:
+    path: /usr/share/keyrings/helm.gpg
+  register: helm_gpg_key
+
+- name: Download and add Helm GPG key
+  shell: |
+    curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | \
+    gpg --dearmor | \
+    tee /usr/share/keyrings/helm.gpg > /dev/null
+  when: not helm_gpg_key.stat.exists
+
+- name: Add Helm apt repository
+  apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main"
+    filename: helm-stable-debian
+    state: present
+
+- name: Update apt cache after adding Helm repository
+  apt:
+    update_cache: yes
+  changed_when: false
+
+- name: Install Helm
+  apt:
+    name: helm
+    state: present
+
+- name: Verify Helm installation
+  command: helm version --short
+  register: helm_version
+  changed_when: false
+
+- name: Display Helm version
+  debug:
+    msg: "Helm installed: {{ helm_version.stdout }}"
+
+- name: Add Helm repositories
+  kubernetes.core.helm_repository:
+    name: "{{ item.name }}"
+    repo_url: "{{ item.url }}"
+  loop: "{{ helm_repositories }}"
+  become: no
+
+- name: Update Helm repositories
+  command: helm repo update
+  changed_when: false
+  become: no
+
+- name: Install kube-prometheus-stack via Helm
+  kubernetes.core.helm:
+    name: kube-prometheus-stack
+    chart: oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack
+    namespace: monitoring
+    create_namespace: true
+    state: present
+    values_files:
+      - roles/helm/files/kube-prometheus-values.yaml
+  become: no

@@ -38,6 +38,10 @@
       include_role:
         name: k3s
 
+    - name: Include helm role
+      include_role:
+        name: helm
+
     - name: Include vLLM role
       include_role:
         name: vllm
