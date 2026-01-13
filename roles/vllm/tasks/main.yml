@@ -36,6 +36,20 @@
   become_user: "{{ ansible_user }}"
   ignore_errors: yes
 
+- name: Create vLLM service monitor manifest
+  template:
+    src: vllm-servicemonitor.yaml.j2
+    dest: "/home/{{ ansible_user }}/vllm-servicemonitor.yaml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Deploy servicemonitor to Kubernetes
+  kubernetes.core.k8s:
+    state: present
+    src: "/home/{{ ansible_user }}/vllm-servicemonitor.yaml"
+    kubeconfig: "{{ kubeconfig }}"
+  become_user: "{{ ansible_user }}"
+
 - name: Display vLLM deployment status
   debug:
     msg:

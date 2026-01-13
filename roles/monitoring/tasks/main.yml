@@ -1,0 +1,42 @@
+---
+- name: Install kube-prometheus-stack via Helm
+  kubernetes.core.helm:
+    name: kube-prometheus-stack
+    chart_ref: oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack
+    namespace: monitoring
+    create_namespace: true
+    state: present
+    values_files:
+      - roles/monitoring/files/kube-prometheus-values.yaml
+  become: no
+
+- name: Install DCGM exporter via Helm
+  kubernetes.core.helm:
+    name: dcgm-exporter
+    chart_ref: nvidia/dcgm-exporter
+    namespace: monitoring
+    create_namespace: false  # Already created by kube-prometheus-stack
+    state: present
+    values_files:
+      - roles/monitoring/files/dcgm-exporter-values.yaml
+  become: no
+
+- name: Wait for DCGM exporter to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: monitoring
+    label_selectors:
+      - app.kubernetes.io/name=dcgm-exporter
+    kubeconfig: "/home/{{ ansible_user }}/.kube/config"
+  register: dcgm_pods
+  until: dcgm_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
+  retries: 20
+  delay: 10
+  become: no
+
+- name: Display DCGM exporter status
+  debug:
+    msg:
+      - "DCGM exporter installed successfully"
+      - "GPU metrics available at: http://localhost:9400/metrics"
+      - "Prometheus will automatically scrape via ServiceMonitor"

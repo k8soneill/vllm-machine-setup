@@ -42,6 +42,10 @@
       include_role:
         name: helm
 
+    - nanme: Include monitoring role
+      include_role:
+        name: monitoring
+
     - name: Include vLLM role
       include_role:
         name: vllm
