@@ -60,7 +60,7 @@
 - name: Install kube-prometheus-stack via Helm
   kubernetes.core.helm:
     name: kube-prometheus-stack
-    chart: oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack
+    chart_ref: oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack
     namespace: monitoring
     create_namespace: true
     state: present

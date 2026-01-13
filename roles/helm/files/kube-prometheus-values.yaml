@@ -3,3 +3,14 @@ grafana:
     enabled: true
     hosts:
       - grafana.localdomain
+  adminPassword: admin
+
+prometheus:
+  prometheusSpec:
+    # Allow Prometheus to discover all ServiceMonitors/PodMonitors
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+nodeExporter:
+  enabled: false
