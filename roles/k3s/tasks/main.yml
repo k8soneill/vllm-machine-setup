@@ -119,11 +119,3 @@
     path: "/home/{{ ansible_user }}/.bashrc"
     line: "export KUBECONFIG=~/.kube/config"
     create: yes
-
-# Setup NVIDIA RuntimeClass
-- name: Setup NVIDIA RuntimeClass
-  include_tasks: setup_nvidia_runtime.yml
-
-# Install NVIDIA device plugin with WSL2 support
-- name: Install NVIDIA device plugin
-  include_tasks: install_nvidia_plugin.yml

@@ -1,0 +1,75 @@
+---
+- name: Create gpu-operator namespace
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: gpu-operator
+
+- name: Install NVIDIA GPU Operator via Helm
+  kubernetes.core.helm:
+    name: gpu-operator
+    chart_ref: nvidia/gpu-operator
+    chart_version: "{{ gpu_operator_version }}"
+    namespace: gpu-operator
+    create_namespace: true
+    state: present
+    values_files:
+      - roles/gpu-operator/files/gpu-operator-values.yaml
+    wait: yes
+    wait_timeout: 600s
+  become: no
+
+- name: Wait for GPU operator components to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: gpu-operator
+    label_selectors:
+      - app=gpu-operator
+    kubeconfig: "{{ kubeconfig }}"
+  register: gpu_operator_pods
+  until: >
+    gpu_operator_pods.resources | length > 0 and
+    gpu_operator_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length == gpu_operator_pods.resources | length
+  retries: 30
+  delay: 10
+  become: no
+
+- name: Wait for NVIDIA device plugin pods
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: gpu-operator
+    label_selectors:
+      - app=nvidia-device-plugin-daemonset
+    kubeconfig: "{{ kubeconfig }}"
+  register: device_plugin_pods
+  until: device_plugin_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
+  retries: 30
+  delay: 10
+  become: no
+
+- name: Get ClusterPolicy status
+  kubernetes.core.k8s_info:
+    kind: ClusterPolicy
+    name: cluster-policy
+    kubeconfig: "{{ kubeconfig }}"
+  register: cluster_policy
+  become: no
+
+- name: Display GPU Operator status
+  debug:
+    msg:
+      - "==========================================="
+      - "NVIDIA GPU Operator Installation Complete (WSL2)"
+      - "==========================================="
+      - "GPU Operator Pods: {{ gpu_operator_pods.resources | length }} running"
+      - "Device Plugin Pods: {{ device_plugin_pods.resources | length }} running"
+      - ""
+      - "ClusterPolicy State: {{ cluster_policy.resources[0].status.state | default('Unknown') }}"
+      - ""
+      - "Note: DCGM is disabled on WSL2 (not compatible with WSL driver)"
+      - "GPU utilization can be monitored via nvidia-smi instead"
+      - "==========================================="

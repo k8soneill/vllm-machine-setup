@@ -1,0 +1,107 @@
+# NVIDIA GPU Operator Helm values for k3s on WSL2
+# Reference: https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html
+
+# Operator configuration
+operator:
+  defaultRuntime: containerd
+
+# Toolkit configuration for k3s on WSL2
+toolkit:
+  enabled: true
+  env:
+    - name: CONTAINERD_CONFIG
+      value: /var/lib/rancher/k3s/agent/etc/containerd/config.toml
+    - name: CONTAINERD_SOCKET
+      value: /run/k3s/containerd/containerd.sock
+    - name: CONTAINERD_RUNTIME_CLASS
+      value: nvidia
+    - name: CONTAINERD_SET_AS_DEFAULT
+      value: "true"
+    # WSL2-specific: Accept missing CDI spec directory
+    - name: ACCEPT_NVIDIA_VISIBLE_DEVICES_ENVVAR_WHEN_UNPRIVILEGED
+      value: "true"
+
+# Driver - MUST be disabled on WSL2 (driver is managed by Windows)
+driver:
+  enabled: false
+
+# DCGM Exporter - DISABLED on WSL2
+# DCGM requires direct access to the NVIDIA driver which is not available in WSL2's architecture
+# The Windows NVIDIA driver doesn't expose the management interface that DCGM needs
+dcgmExporter:
+  enabled: false
+
+# Device Plugin configuration for WSL2
+devicePlugin:
+  enabled: true
+  config:
+    name: device-plugin-config
+    create: true
+    default: "default"
+    data:
+      default: |-
+        version: v1
+        flags:
+          migStrategy: none
+          failOnInitError: false
+          nvidiaDriverRoot: "/"
+          plugin:
+            passDeviceSpecs: true
+            deviceListStrategy: envvar
+            deviceIDStrategy: uuid
+
+# GPU Feature Discovery - may have limited functionality on WSL2
+gfd:
+  enabled: true
+
+# Node Feature Discovery - let the operator manage this
+nfd:
+  enabled: true
+
+# MIG Manager - disable (MIG not supported on WSL2)
+migManager:
+  enabled: false
+
+# Sandbox workloads (for vGPU) - not needed for standard GPU passthrough
+sandboxWorkloads:
+  enabled: false
+
+# vGPU Manager - disable for standard GPU passthrough
+vgpuManager:
+  enabled: false
+
+# vGPU Device Manager
+vgpuDeviceManager:
+  enabled: false
+
+# vfio Manager for GPU passthrough to VMs - not needed for containers
+vfioManager:
+  enabled: false
+
+# Sandbox Device Plugin
+sandboxDevicePlugin:
+  enabled: false
+
+# DCGM - DISABLED on WSL2 (not compatible with WSL driver architecture)
+dcgm:
+  enabled: false
+
+# Node status exporter
+nodeStatusExporter:
+  enabled: true
+
+# GDS (GPUDirect Storage) - not supported on WSL2
+gds:
+  enabled: false
+
+# GDRCOPY - not supported on WSL2
+gdrcopy:
+  enabled: false
+
+# Validator configuration for WSL2
+validator:
+  driver:
+    env:
+      - name: DISABLE_DEV_CHAR_SYMLINK_CREATION
+        value: "true"
+  enabled: false

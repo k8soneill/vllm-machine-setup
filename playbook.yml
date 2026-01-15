@@ -42,7 +42,11 @@
       include_role:
         name: helm
 
-    - nanme: Include monitoring role
+    - name: Include GPU Operator role
+      include_role:
+        name: gpu-operator
+
+    - name: Include monitoring role
       include_role:
         name: monitoring
 

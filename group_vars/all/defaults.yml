@@ -27,9 +27,8 @@ k3s_install_script_checksum: "sha256:5f785120f00ef4b0aba205161232d2a04b6e7a75332
 k3s_verify_checksum_strict: true  # Set to true after you've verified the checksum
 k3s_install_dir: /usr/local/bin
 
-# NVIDIA device plugin
-nvidia_device_plugin_tag: "v0.15.0-rc.2"
-nvidia_device_plugin_image: nvcr.io/nvidia/k8s-device-plugin
+# NVIDIA GPU Operator
+gpu_operator_version: "v24.9.0"
 
 # Kubernetes deployment
 vllm_deployment_name: vllm-mistral
@@ -43,3 +42,4 @@ gpu_verification_strict: true # Validate GPU available on nodes
 # Helm configuration
 helm_repositories:
   - { name: "prometheus-community", url: "https://prometheus-community.github.io/helm-charts" }
+  - { name: "nvidia", url: "https://helm.ngc.nvidia.com/nvidia" }
